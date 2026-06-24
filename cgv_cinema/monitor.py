@@ -29,6 +29,7 @@ class ToyStory5Monitor:
         time_window: tuple[str, str] = config.DEFAULT_TIME_WINDOW,
         date: str | None = None,        # YYYYMMDD; None → upcoming Sunday
         interval_min: int = 5,
+        max_alerts: int = 12,        # 예매 오픈 후 5분×12 = 1시간 동안만 알림
         notifier=None,
         log_dir: str | None = None,
     ):
@@ -39,11 +40,15 @@ class ToyStory5Monitor:
         self.time_window = time_window
         self.fixed_date = date
         self.interval_min = interval_min
+        self.max_alerts = max_alerts
         self.notifier = notifier or build_default_notifier()
         self.log_dir = log_dir or os.path.join(os.getcwd(), "logs")
         # snapshot of previously seen target slots: {key: free_seats}
         self._prev: dict[str, int | None] = {}
-        self._known_open: set[str] = set()
+        # were seats available on the previous tick? (for first-detection wording)
+        self._was_available: bool = False
+        # how many alerts already sent for the current open window (cap = max_alerts)
+        self._alert_count: int = 0
 
     # ── target selection ─────────────────────────────────────────────────
     def target_date(self) -> str:
@@ -71,29 +76,32 @@ class ToyStory5Monitor:
         targets = self.matching(shows)
         self._report(now, date, all_toy, targets)
 
-        # ── transition detection ──
-        newly_opened, seats_back = [], []
-        cur = {}
-        for s in targets:
-            cur[s.key] = s.free_seats
-            if s.key not in self._known_open:
-                self._known_open.add(s.key)
-                if s.has_seats:
-                    newly_opened.append(s)        # 예매가 새로 열림 + 좌석 있음
+        # ── 알림: 좌석 있는 매칭 회차가 있으면 5분마다 최대 max_alerts회 발송 ──
+        # 예매가 새로 열리는(좌석 0/없음 → 좌석 있음) 순간 카운터를 리셋하고,
+        # 그 뒤 매 폴링(5분)마다 1통씩, 총 max_alerts통(=1시간)까지 보낸 뒤 멈춘다.
+        available = [s for s in targets if s.has_seats]
+        self._prev = {s.key: s.free_seats for s in targets}
+        first = False
+        alert_sent = False
+        if available:
+            if not self._was_available:      # 방금 열림 → 새 알림 윈도우 시작
+                self._alert_count = 0
+                first = True
+            self._was_available = True
+            if self._alert_count < self.max_alerts:
+                self._alert_count += 1
+                alert_sent = True
+                n, total = self._alert_count, self.max_alerts
+                kind = (f"예매 오픈 — 좌석 있음 (알림 {n}/{total})" if first or n == 1
+                        else f"예매 가능 · 잔여좌석 (알림 {n}/{total}, 5분 반복)")
+                subj, body = format_alert(kind, available, date, self.site_name)
+                self.notifier.send(subj, body)
             else:
-                prev_free = self._prev.get(s.key)
-                if (prev_free == 0 or prev_free is None) and s.has_seats:
-                    seats_back.append(s)          # 매진→좌석 발생
-        self._prev = cur
-
-        if newly_opened:
-            subj, body = format_alert("예매 오픈 (좌석 있음)",
-                                      newly_opened, date, self.site_name)
-            self.notifier.send(subj, body)
-        if seats_back:
-            subj, body = format_alert("잔여좌석 발생",
-                                      seats_back, date, self.site_name)
-            self.notifier.send(subj, body)
+                print(f"   (1시간/{self.max_alerts}회 알림 완료 — 추가 이메일 중단. "
+                      f"매진 후 재오픈 시 재알림)", flush=True)
+        else:
+            self._was_available = False
+            self._alert_count = 0
 
         self._save(date, now, targets, all_toy)
         return {
@@ -101,9 +109,11 @@ class ToyStory5Monitor:
             "toystory5_total": len(all_toy),
             "target_count": len(targets),
             "open": bool(targets),
-            "available": any(s.has_seats for s in targets),
-            "newly_opened": [s.to_dict() for s in newly_opened],
-            "seats_back": [s.to_dict() for s in seats_back],
+            "available": bool(available),
+            "alert_sent": alert_sent,
+            "first_detection": first,
+            "alerts_sent_this_window": self._alert_count,
+            "max_alerts": self.max_alerts,
             "targets": [s.to_dict() for s in targets],
         }
 

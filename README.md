@@ -87,12 +87,15 @@ python scripts/monitor_toystory5.py
 python scripts/monitor_toystory5.py --date 20260628 --window 1030-1200
 python scripts/monitor_toystory5.py --grade all        # 전체 포맷 감시
 python scripts/monitor_toystory5.py --interval 5        # 갱신 간격(분)
+python scripts/monitor_toystory5.py --max-alerts 12     # 오픈 후 알림 횟수(기본 12=1시간)
+python scripts/monitor_toystory5.py --test-email        # SMTP 스모크 테스트(샘플 1통)
 ```
 
 기본 감시 대상: **용산아이파크몰 · 토이 스토리 5 · 일반관 2D(`0101`) · 10:30–12:00**.
-- **예매 오픈 감지**: 해당 조건의 회차가 *새로 나타나고* 좌석이 있으면 알림.
-- **잔여좌석 발생 감지**: 매진(0석) → 좌석 생김 으로 바뀌면 알림.
-- 같은 상태를 매 틱 반복 알림하지 않습니다(상태 변화 시에만).
+- **예매 오픈/좌석 감지**: 조건에 맞는 회차에 잔여좌석이 생기면 알림.
+- **5분마다 반복**: 좌석이 있는 동안 매 폴링(5분)마다 1통씩, **최대 12통(= 5분 × 12 = 1시간)** 발송 후 중단.
+- **매진 → 재오픈 재알림**: 좌석이 0이 되면 카운터를 리셋하고, 다시 열리면 또 최대 12통.
+- 발송 횟수는 `--max-alerts` 로 조정.
 
 ### 이메일 알림 설정 (SMTP)
 
