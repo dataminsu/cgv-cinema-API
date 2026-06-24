@@ -77,6 +77,9 @@ def email_config() -> dict:
         "from_addr": os.environ.get("ALERT_FROM") or os.environ.get("SMTP_USER", ""),
         "to_addrs": [a.strip() for a in to_raw.split(",") if a.strip()],
         "use_tls": os.environ.get("SMTP_USE_TLS", "1") not in ("0", "false", "False"),
+        # implicit SSL (port 465). STARTTLS (587) is the default otherwise.
+        "use_ssl": (os.environ.get("SMTP_USE_SSL", "").lower() in ("1", "true", "yes"))
+        or os.environ.get("SMTP_PORT", "") == "465",
     }
 
 

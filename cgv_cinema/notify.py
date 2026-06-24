@@ -53,9 +53,13 @@ class EmailNotifier:
         msg["To"] = ", ".join(c["to_addrs"])
         msg["Date"] = formatdate(localtime=True)
         try:
-            with smtplib.SMTP(c["host"], c["port"], timeout=20) as srv:
+            if c.get("use_ssl"):
+                srv = smtplib.SMTP_SSL(c["host"], c["port"], timeout=20)
+            else:
+                srv = smtplib.SMTP(c["host"], c["port"], timeout=20)
+            with srv:
                 srv.ehlo()
-                if c["use_tls"]:
+                if c["use_tls"] and not c.get("use_ssl"):
                     srv.starttls()
                     srv.ehlo()
                 srv.login(c["user"], c["password"])
