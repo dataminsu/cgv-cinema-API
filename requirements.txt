@@ -1,0 +1,4 @@
+# Core client + monitor: standard library only (no install required).
+# The following are needed ONLY for the optional FastAPI HTTP server (api/server.py):
+fastapi>=0.110
+uvicorn[standard]>=0.29
