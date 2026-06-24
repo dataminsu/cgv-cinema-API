@@ -22,10 +22,11 @@ for _s in (sys.stdout, sys.stderr):
 class ConsoleNotifier:
     """Loud terminal output with a BEL beep. Always available."""
 
-    def send(self, subject: str, body: str) -> None:
+    def send(self, subject: str, body: str) -> bool:
         bar = "═" * 64
         # \a rings the terminal bell.
         print(f"\a\n{bar}\n🔔  {subject}\n{bar}\n{body}\n{bar}\n", flush=True)
+        return True
 
 
 class EmailNotifier:
@@ -43,9 +44,9 @@ class EmailNotifier:
         c = self.cfg
         return bool(c["host"] and c["user"] and c["password"] and c["to_addrs"])
 
-    def send(self, subject: str, body: str) -> None:
+    def send(self, subject: str, body: str) -> bool:
         if not self.enabled:
-            return
+            return False
         c = self.cfg
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"] = subject
@@ -65,8 +66,10 @@ class EmailNotifier:
                 srv.login(c["user"], c["password"])
                 srv.sendmail(c["from_addr"], c["to_addrs"], msg.as_string())
             print(f"   ✉️  이메일 발송 → {', '.join(c['to_addrs'])}", flush=True)
+            return True
         except Exception as e:   # noqa: BLE001 - never let alerting crash the loop
             print(f"   ⚠️  이메일 발송 실패: {e}", flush=True)
+            return False
 
 
 class NotifierGroup:

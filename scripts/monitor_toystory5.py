@@ -39,7 +39,7 @@ def smoke_test() -> int:
     from cgv_cinema import filters
     from cgv_cinema.config import email_enabled
     from cgv_cinema.models import Showtime
-    from cgv_cinema.notify import format_alert
+    from cgv_cinema.notify import ConsoleNotifier, EmailNotifier, format_alert
 
     date = filters.next_sunday().strftime("%Y%m%d")
     sample = Showtime(
@@ -55,13 +55,17 @@ def smoke_test() -> int:
     print(f"이메일 알림: {'활성 (SMTP 설정 감지)' if enabled else '비활성 (SMTP 미설정 → 콘솔만)'}")
     subj, body = format_alert("[SMOKE TEST] 예매 오픈 — 좌석 있음 (샘플)",
                               [sample], date, config.YONGSAN_IPARK_SITE_NAME)
-    build_default_notifier().send(subj, body)
+    ConsoleNotifier().send(subj, body)
     if not enabled:
         print("\n⚠️  SMTP 환경변수가 없어 실제 메일은 보내지 않았습니다(콘솔 출력만).")
         print("   .env 를 채우거나 환경변수를 설정한 뒤 다시 --test-email 하세요.")
-    else:
-        print("\n✅ 스모크 테스트 메일을 발송했습니다. 받은편지함을 확인하세요.")
-    return 0
+        return 1
+    ok = EmailNotifier().send(subj, body)
+    if ok:
+        print("\n✅ 스모크 테스트 메일 발송 성공 — 받은편지함을 확인하세요.")
+        return 0
+    print("\n❌ 메일 발송 실패(위 오류 참조). 자격증명/포트/앱비밀번호를 확인하세요.")
+    return 1
 
 
 def main() -> int:
