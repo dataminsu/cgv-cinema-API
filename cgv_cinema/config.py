@@ -86,3 +86,28 @@ def email_config() -> dict:
 def email_enabled() -> bool:
     c = email_config()
     return bool(c["host"] and c["user"] and c["password"] and c["to_addrs"])
+
+
+def load_dotenv(path: str | None = None) -> None:
+    """Minimal .env loader (no dependency). Loads KEY=VALUE lines into the
+    environment WITHOUT overriding variables already set. Looks at the repo
+    root (next to .env.example) by default. Quotes are stripped."""
+    if path is None:
+        repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(repo_root, ".env")
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+    except OSError:
+        pass
+
+
+# Auto-load a local .env on import so `python scripts/...` just works.
+load_dotenv()
